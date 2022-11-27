@@ -2,8 +2,9 @@
 
 """
 import os
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from docutils import nodes
 from sphinx.util.docutils import SphinxDirective
@@ -68,19 +69,31 @@ class TagLinks(SphinxDirective):
         link = os.path.join(rootdir, f"{tag}.html")
         return nodes.reference(refuri=link, text=tag)
 
+    # TODO: document usage and settings for sphinx-design badges
     def _get_badge_node(self, tag: str) -> List[nodes.Node]:
         """Get a sphinx-design reference badge for the given tag"""
         from sphinx_design.badges_buttons import XRefBadgeRole
 
-        tag_badge = XRefBadgeRole('primary')
+        tag_color = self._get_tag_color(tag)
+        tag_badge = XRefBadgeRole(tag_color)
         tag_ref = f'{tag} <tags/{tag}>'
         return tag_badge(
-            'bdg-ref-primary',
+            f'bdg-ref-{tag_color}',
             tag,
             tag_ref,
             self.lineno,
             self.state.inliner,
         )[0]
+
+    def _get_tag_color(self, tag: str) -> Optional[str]:
+        """Check for a matching user-defined color for a given tag.
+        Defaults to ``None`` for no plain uncolored badge.
+        """
+        tag_colors = self.env.app.config.tags_badge_colors or {}
+        for pattern, color in tag_colors.items():
+            if fnmatch(tag, pattern):
+                return color
+        return None
 
 
 class Tag:
@@ -310,6 +323,7 @@ def setup(app):
     app.add_config_value("tags_page_header", "With this tag", "html")
     app.add_config_value("tags_index_head", "Tags", "html")
     app.add_config_value("tags_create_badges", False, "html")
+    app.add_config_value("tags_badge_colors", {}, "html")
 
     # internal config values
     app.add_config_value(
