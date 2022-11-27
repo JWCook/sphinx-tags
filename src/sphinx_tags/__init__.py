@@ -69,7 +69,6 @@ class TagLinks(SphinxDirective):
         link = os.path.join(rootdir, f"{tag}.html")
         return nodes.reference(refuri=link, text=tag)
 
-    # TODO: document usage and settings for sphinx-design badges
     def _get_badge_node(self, tag: str) -> List[nodes.Node]:
         """Get a sphinx-design reference badge for the given tag"""
         from sphinx_design.badges_buttons import XRefBadgeRole
