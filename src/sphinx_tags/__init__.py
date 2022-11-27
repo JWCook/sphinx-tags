@@ -2,10 +2,12 @@
 
 """
 import os
-from sphinx.util.logging import getLogger
-from sphinx.util.docutils import SphinxDirective
-from docutils import nodes
 from pathlib import Path
+from typing import List
+
+from docutils import nodes
+from sphinx.util.docutils import SphinxDirective
+from sphinx.util.logging import getLogger
 
 __version__ = "0.1.6"
 
@@ -46,19 +48,37 @@ class TagLinks(SphinxDirective):
             #  - subfolder
             #   |
             #    - current_doc_path
-            docpath = Path(self.env.doc2path(self.env.docname)).parent
-
-            rootdir = os.path.relpath(
-                os.path.join(self.env.app.srcdir, self.env.app.config.tags_output_dir),
-                docpath,
-            )
-
-            link = os.path.join(rootdir, f"{tag}.html")
-            tag_node = nodes.reference(refuri=link, text=tag)
-            result += tag_node
+            if self.env.app.config.tags_create_badges:
+                result += self._get_badge_node(tag)
+            else:
+                result += self._get_plaintext_node(tag)
             if not count == len(tags):
                 result += nodes.inline(text=f"{self.separator} ")
         return [result]
+
+    def _get_plaintext_node(self, tag: str) -> List[nodes.Node]:
+        """Get a plaintext reference link for the given tag"""
+        docpath = Path(self.env.doc2path(self.env.docname)).parent
+        rootdir = os.path.relpath(
+            os.path.join(self.env.app.srcdir, self.env.app.config.tags_output_dir),
+            docpath,
+        )
+        link = os.path.join(rootdir, f"{tag}.html")
+        return nodes.reference(refuri=link, text=tag)
+
+    def _get_badge_node(self, tag: str) -> List[nodes.Node]:
+        """Get a sphinx-design reference badge for the given tag"""
+        from sphinx_design.badges_buttons import XRefBadgeRole
+
+        tag_badge = XRefBadgeRole('primary')
+        tag_ref = f'{tag} <tags/{tag}>'
+        return tag_badge(
+            'bdg-ref-primary',
+            tag,
+            tag_ref,
+            self.lineno,
+            self.state.inliner,
+        )[0]
 
 
 class Tag:
@@ -287,6 +307,7 @@ def setup(app):
     app.add_config_value("tags_page_title", "My tags", "html")
     app.add_config_value("tags_page_header", "With this tag", "html")
     app.add_config_value("tags_index_head", "Tags", "html")
+    app.add_config_value("tags_create_badges", False, "html")
 
     # internal config values
     app.add_config_value(
