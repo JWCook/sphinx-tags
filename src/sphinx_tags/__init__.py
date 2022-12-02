@@ -10,7 +10,7 @@ from docutils import nodes
 from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 logger = getLogger("sphinx-tags")
 
@@ -105,7 +105,6 @@ class Tag:
     def create_file(
         self,
         items,
-        extension,
         tags_output_dir,
         srcdir,
         tags_page_title,
@@ -126,8 +125,6 @@ class Tag:
             path where the file for this tag will be created
         items : list
             list of files associated with this tag (instance of Entry)
-        extension : {["rst"], ["md"], ["rst", "md"]}
-            list of file extensions used.
         srcdir : str
             root folder for the documentation (usually, project/docs)
         tags_page_title: str
@@ -140,37 +137,20 @@ class Tag:
 
         """
         content = []
-        if "md" in extension:
-            filename = f"{self.name}.md"
-            content.append(f"# {tags_page_title}: {self.name}")
-            content.append("")
-            content.append("```{toctree}")
-            content.append("---")
-            content.append("maxdepth: 1")
-            content.append(f"caption: {tags_page_header}")
-            content.append("---")
-            #  items is a list of files associated with this tag
-            for item in items:
-                # We want here the filepath relative to /docs/_tags
-                relpath = item.filepath.relative_to(srcdir)
-                content.append(f"../{relpath}")
-            content.append("```")
-        else:
-            filename = f"{self.name}.rst"
-            content.append(f"{tags_page_title}: {self.name}")
-            content.append("#" * (len(self.name) + len(tags_page_title) + 2))
-            content.append("")
-            #  Return link block at the start of the page"""
-            content.append(".. toctree::")
-            content.append("    :maxdepth: 1")
-            content.append(f"    :caption: {tags_page_header}")
-            content.append("")
-            #  items is a list of files associated with this tag
-            for item in sorted(items, key=lambda i: i.filepath):
-                # We want here the filepath relative to /docs/_tags
-                relpath = item.filepath.relative_to(srcdir)
-                content.append(f"    ../{relpath}")
-
+        filename = f"{self.name}.md"
+        content.append(f"# {tags_page_title}: {self.name}")
+        content.append("")
+        content.append("```{toctree}")
+        content.append("---")
+        content.append("maxdepth: 1")
+        content.append(f"caption: {tags_page_header}")
+        content.append("---")
+        #  items is a list of files associated with this tag
+        for item in items:
+            # We want here the filepath relative to /docs/_tags
+            relpath = item.filepath.relative_to(srcdir)
+            content.append(f"../{relpath}")
+        content.append("```")
         content.append("")
         with open(
             os.path.join(srcdir, tags_output_dir, filename), "w", encoding="utf8"
@@ -183,14 +163,11 @@ class Entry:
 
     def __init__(self, entrypath):
         self.filepath = entrypath
+        tagstart = "```{tags}"
+        tagend = "```"
+
         with open(self.filepath, "r", encoding="utf8") as f:
             self.lines = f.read().split("\n")
-        if self.filepath.name.endswith(".rst"):
-            tagstart = ".. tags::"
-            tagend = ""
-        elif self.filepath.name.endswith(".md"):
-            tagstart = "```{tags}"
-            tagend = "```"
         tagline = [line for line in self.lines if tagstart in line]
         self.tags = []
         if tagline:
@@ -206,7 +183,7 @@ class Entry:
             tag_dict[tag].items.append(self)
 
 
-def tagpage(tags, outdir, title, extension, tags_index_head):
+def tagpage(tags, outdir, title, tags_index_head):
     """Creates Tag overview page.
 
     This page contains a list of all available tags.
@@ -214,41 +191,22 @@ def tagpage(tags, outdir, title, extension, tags_index_head):
     """
     tags = list(tags.values())
 
-    if "md" in extension:
-        content = []
-        content.append("(tagoverview)=")
-        content.append("")
-        content.append(f"# {title}")
-        content.append("")
-        # toctree for this page
-        content.append("```{toctree}")
-        content.append("---")
-        content.append(f"caption: {tags_index_head}")
-        content.append("maxdepth: 1")
-        content.append("---")
-        for tag in sorted(tags, key=lambda t: t.name):
-            content.append(f"{tag.name} ({len(tag.items)}) <{tag.name}>")
-        content.append("```")
-        content.append("")
-        filename = os.path.join(outdir, "tagsindex.md")
-    else:
-        content = []
-        content.append(":orphan:")
-        content.append("")
-        content.append(".. _tagoverview:")
-        content.append("")
-        content.append(title)
-        content.append("#" * len(title))
-        content.append("")
-        # toctree for the page
-        content.append(".. toctree::")
-        content.append(f"    :caption: {tags_index_head}")
-        content.append("    :maxdepth: 1")
-        content.append("")
-        for tag in sorted(tags, key=lambda t: t.name):
-            content.append(f"    {tag.name} ({len(tag.items)}) <{tag.name}.rst>")
-        content.append("")
-        filename = os.path.join(outdir, "tagsindex.rst")
+    content = []
+    content.append("(tagoverview)=")
+    content.append("")
+    content.append(f"# {title}")
+    content.append("")
+    # toctree for this page
+    content.append("```{toctree}")
+    content.append("---")
+    content.append(f"caption: {tags_index_head}")
+    content.append("maxdepth: 1")
+    content.append("---")
+    for tag in sorted(tags, key=lambda t: t.name):
+        content.append(f"{tag.name} ({len(tag.items)}) <{tag.name}>")
+    content.append("```")
+    content.append("")
+    filename = os.path.join(outdir, "tagsindex.md")
 
     with open(filename, "w", encoding="utf8") as f:
         f.write("\n".join(content))
@@ -258,10 +216,8 @@ def assign_entries(app):
     """Assign all found entries to their tag."""
     pages = []
     tags = {}
-    result = []
-    for extension in app.config.tags_extension:
-        result.extend(list(Path(app.srcdir).rglob(f"*.{extension}")))
-    for entrypath in result:
+
+    for entrypath in Path(app.srcdir).rglob("*.md"):
         entry = Entry(entrypath)
         entry.assign_to_tags(tags)
         pages.append(entry)
@@ -286,7 +242,6 @@ def update_tags(app):
         for tag in tags.values():
             tag.create_file(
                 [item for item in pages if tag.name in item.tags],
-                app.config.tags_extension,
                 tags_output_dir,
                 app.srcdir,
                 app.config.tags_page_title,
@@ -297,7 +252,6 @@ def update_tags(app):
             tags,
             os.path.join(app.srcdir, tags_output_dir),
             app.config.tags_overview_title,
-            app.config.tags_extension,
             app.config.tags_index_head,
         )
         logger.info("Tags updated", color="white")
@@ -316,7 +270,6 @@ def setup(app):
     app.add_config_value("tags_create_tags", False, "html")
     app.add_config_value("tags_output_dir", "_tags", "html")
     app.add_config_value("tags_overview_title", "Tags overview", "html")
-    app.add_config_value("tags_extension", ["rst"], "html")
     app.add_config_value("tags_intro_text", "Tags:", "html")
     app.add_config_value("tags_page_title", "My tags", "html")
     app.add_config_value("tags_page_header", "With this tag", "html")
@@ -327,9 +280,7 @@ def setup(app):
     # internal config values
     app.add_config_value(
         "remove_from_toctrees",
-        [
-            app.config.tags_output_dir,
-        ],
+        [app.config.tags_output_dir],
         "html",
     )
 
