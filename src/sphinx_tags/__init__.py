@@ -2,12 +2,15 @@
 
 """
 import os
-from sphinx.util.logging import getLogger
-from sphinx.util.docutils import SphinxDirective
-from docutils import nodes
+from fnmatch import fnmatch
 from pathlib import Path
+from typing import List, Optional
 
-__version__ = "0.1.6"
+from docutils import nodes
+from sphinx.util.docutils import SphinxDirective
+from sphinx.util.logging import getLogger
+
+__version__ = "0.2.0"
 
 logger = getLogger("sphinx-tags")
 
@@ -46,19 +49,50 @@ class TagLinks(SphinxDirective):
             #  - subfolder
             #   |
             #    - current_doc_path
-            docpath = Path(self.env.doc2path(self.env.docname)).parent
-
-            rootdir = os.path.relpath(
-                os.path.join(self.env.app.srcdir, self.env.app.config.tags_output_dir),
-                docpath,
-            )
-
-            link = os.path.join(rootdir, f"{tag}.html")
-            tag_node = nodes.reference(refuri=link, text=tag)
-            result += tag_node
+            if self.env.app.config.tags_create_badges:
+                result += self._get_badge_node(tag)
+                tag_separator = " "
+            else:
+                result += self._get_plaintext_node(tag)
+                tag_separator = f"{self.separator} "
             if not count == len(tags):
-                result += nodes.inline(text=f"{self.separator} ")
+                result += nodes.inline(text=tag_separator)
         return [result]
+
+    def _get_plaintext_node(self, tag: str) -> List[nodes.Node]:
+        """Get a plaintext reference link for the given tag"""
+        docpath = Path(self.env.doc2path(self.env.docname)).parent
+        rootdir = os.path.relpath(
+            os.path.join(self.env.app.srcdir, self.env.app.config.tags_output_dir),
+            docpath,
+        )
+        link = os.path.join(rootdir, f"{tag}.html")
+        return nodes.reference(refuri=link, text=tag)
+
+    def _get_badge_node(self, tag: str) -> List[nodes.Node]:
+        """Get a sphinx-design reference badge for the given tag"""
+        from sphinx_design.badges_buttons import XRefBadgeRole
+
+        tag_color = self._get_tag_color(tag)
+        tag_badge = XRefBadgeRole(tag_color)
+        tag_ref = f'{tag} <tags/{tag}>'
+        return tag_badge(
+            f'bdg-ref-{tag_color}',
+            tag,
+            tag_ref,
+            self.lineno,
+            self.state.inliner,
+        )[0]
+
+    def _get_tag_color(self, tag: str) -> Optional[str]:
+        """Check for a matching user-defined color for a given tag.
+        Defaults to ``None`` for no plain uncolored badge.
+        """
+        tag_colors = self.env.app.config.tags_badge_colors or {}
+        for pattern, color in tag_colors.items():
+            if fnmatch(tag, pattern):
+                return color
+        return None
 
 
 class Tag:
@@ -287,6 +321,8 @@ def setup(app):
     app.add_config_value("tags_page_title", "My tags", "html")
     app.add_config_value("tags_page_header", "With this tag", "html")
     app.add_config_value("tags_index_head", "Tags", "html")
+    app.add_config_value("tags_create_badges", False, "html")
+    app.add_config_value("tags_badge_colors", {}, "html")
 
     # internal config values
     app.add_config_value(
