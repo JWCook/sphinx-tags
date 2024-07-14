@@ -167,6 +167,7 @@ class Tag:
         srcdir,
         tags_page_title,
         tags_page_header,
+        tags_create_tag_toctree,
     ):
         """Create file with list of documents associated with a given tag in
         toctree format.
@@ -197,8 +198,8 @@ class Tag:
 
         """
         # Get sorted file paths for tag pages, relative to /docs/_tags
-        tag_page_paths = sorted([i.relpath(srcdir) for i in items])
         ref_label = f"sphx_tag_{self.file_basename}"
+        tags_output_path = Path(srcdir) / tags_output_dir
 
         content = []
         if "md" in extension:
@@ -206,14 +207,20 @@ class Tag:
             content.append(f"({ref_label})=")
             content.append(f"# {tags_page_title} {self.name} ({len(items)})")
             content.append("")
-            content.append("```{toctree}")
-            content.append("---")
-            content.append("maxdepth: 1")
-            content.append(f"caption: {tags_page_header}")
-            content.append("---")
-            for path in tag_page_paths:
-                content.append(f"../{path}")
-            content.append("```")
+            # List of tagged pages as a toctree
+            if tags_create_tag_toctree:
+                content.append("```{toctree}")
+                content.append("---")
+                content.append("maxdepth: 1")
+                content.append(f"caption: {tags_page_header}")
+                content.append("---")
+                for item in items:
+                    content.append(f"{item.relpath(tags_output_path)}")
+                content.append("```")
+            # List of tagged pages as a bullet list
+            else:
+                for item in items:
+                    content.append(f"- []({item.relpath(tags_output_path)})")
         else:
             filename = f"{self.file_basename}.rst"
             header = f"{tags_page_title} {self.name} ({len(items)})"
@@ -222,17 +229,21 @@ class Tag:
             content.append(header)
             content.append("#" * textwidth(header))
             content.append("")
-            content.append(".. toctree::")
-            content.append("    :maxdepth: 1")
-            content.append(f"    :caption: {tags_page_header}")
-            content.append("")
-            for path in tag_page_paths:
-                content.append(f"    ../{path}")
+            # List of tagged pages as a toctree
+            if tags_create_tag_toctree:
+                content.append(".. toctree::")
+                content.append("    :maxdepth: 1")
+                content.append(f"    :caption: {tags_page_header}")
+                content.append("")
+                for item in items:
+                    content.append(f"    {item.relpath(tags_output_path)}")
+            # List of tagged pages as a bullet list
+            else:
+                for item in items:
+                    content.append(f"   * :doc:`{item.relpath(tags_output_path)}`")
 
         content.append("")
-        with open(
-            os.path.join(srcdir, tags_output_dir, filename), "w", encoding="utf8"
-        ) as f:
+        with open(tags_output_path / filename, "w", encoding="utf8") as f:
             f.write("\n".join(content))
 
 
@@ -407,6 +418,7 @@ def update_tags(app):
                 app.srcdir,
                 app.config.tags_page_title,
                 app.config.tags_page_header,
+                app.config.tags_create_tag_toctree,
             )
 
         # Create tags overview page
@@ -433,6 +445,7 @@ def setup(app):
 
     app.add_config_value("tags_create_tags", False, "html")
     app.add_config_value("tags_create_tag_index", True, "html")
+    app.add_config_value("tags_create_tag_toctree", True, "html")
     app.add_config_value("tags_output_dir", "_tags", "html")
     app.add_config_value("tags_overview_title", "Tags overview", "html")
     app.add_config_value("tags_extension", ["rst"], "html")
