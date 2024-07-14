@@ -410,13 +410,14 @@ def update_tags(app):
             )
 
         # Create tags overview page
-        tagpage(
-            tags,
-            os.path.join(app.srcdir, tags_output_dir),
-            app.config.tags_overview_title,
-            app.config.tags_extension,
-            app.config.tags_index_head,
-        )
+        if app.config.tags_create_tag_index:
+            tagpage(
+                tags,
+                os.path.join(app.srcdir, tags_output_dir),
+                app.config.tags_overview_title,
+                app.config.tags_extension,
+                app.config.tags_index_head,
+            )
         logger.info("Tags updated", color="white")
     else:
         logger.info(
@@ -431,6 +432,7 @@ def setup(app):
     # These values will be updated after config-inited
 
     app.add_config_value("tags_create_tags", False, "html")
+    app.add_config_value("tags_create_tag_index", True, "html")
     app.add_config_value("tags_output_dir", "_tags", "html")
     app.add_config_value("tags_overview_title", "Tags overview", "html")
     app.add_config_value("tags_extension", ["rst"], "html")
